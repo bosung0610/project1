@@ -1,0 +1,488 @@
+알겠습니다! 하나씩 자세히 설명하면서 필요한 코드를 제공하겠습니다. 각 단계를 하나씩 진행하면서 구현할 수 있도록 도와드리겠습니다.
+
+1. 프로젝트 설정하기
+
+먼저, Android Studio에서 새 프로젝트를 생성해야 합니다. 프로젝트 이름과 패키지 이름을 설정하고, Empty Activity를 선택하여 새 프로젝트를 시작하세요.
+
+2. 권한 설정
+
+음성 인식을 사용하려면 마이크 권한이 필요합니다. 이를 AndroidManifest.xml 파일에 추가해야 합니다.
+
+AndroidManifest.xml 수정
+
+<uses-permission android:name="android.permission.INTERNET"/>
+<uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
+3. 레이아웃 파일 설정
+
+이제, activity_main.xml 레이아웃 파일을 수정하여 UI를 설정합니다. UI는 음성 인식 텍스트, 번역된 텍스트, 언어 선택, 초기화 버튼 등을 포함해야 합니다.
+
+activity_main.xml
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- 상대방 음성 텍스트 -->
+    <TextView
+        android:id="@+id/originalText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="상대방의 말이 여기에 표시됩니다."
+        android:textSize="18sp"
+        android:textColor="#000000"
+        android:padding="8dp"
+        android:background="#f5f5f5"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- 번역된 텍스트 -->
+    <TextView
+        android:id="@+id/translatedText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="번역된 텍스트가 여기에 표시됩니다."
+        android:textSize="18sp"
+        android:textColor="#000000"
+        android:padding="8dp"
+        android:background="#e8e8e8"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- 음성 인식 상태 표시 (마이크 아이콘) -->
+    <ImageView
+        android:id="@+id/micIcon"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:src="@drawable/ic_mic_off"
+        android:layout_gravity="center"/>
+
+    <!-- 언어 선택 -->
+    <Spinner
+        android:id="@+id/languageSpinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/languages"/>
+
+    <!-- 초기화 버튼 -->
+    <Button
+        android:id="@+id/resetButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="초기화"
+        android:textColor="#ffffff"
+        android:background="#FF5722"
+        android:layout_marginTop="16dp"/>
+</LinearLayout>
+
+이 레이아웃은 상대방 음성 텍스트, 번역된 텍스트, 언어 선택 드롭다운, 음성 인식 상태 아이콘, 초기화 버튼을 포함합니다.
+
+4. 언어 선택 (Spinner 설정)
+
+languageSpinner는 사용자가 원하는 번역 언어를 선택하는 드롭다운입니다. 이를 설정하기 위해서는 strings.xml 파일에 번역 가능한 언어 목록을 추가해야 합니다.
+
+res/values/strings.xml
+
+<resources>
+    <string name="app_name">Speech Translator</string>
+    <string-array name="languages">
+        <item>영어</item>
+        <item>한국어</item>
+        <item>일본어</item>
+        <item>중국어</item>
+        <item>스페인어</item>
+        <item>독일어</item>
+    </string-array>
+</resources>
+
+이렇게 추가하면, Spinner에서 언어 선택을 할 수 있게 됩니다.
+
+5. MainActivity.java 설정
+
+이제 MainActivity.java에서 음성 인식 기능을 구현합니다. 이를 위해 SpeechRecognizer를 사용하여 음성을 텍스트로 변환하고, 선택된 언어에 맞게 번역할 수 있는 기능을 구현합니다.
+
+MainActivity.java
+
+import android.app.Activity;
+import android.os.Bundle;
+import android.speech.SpeechRecognizer;
+import android.speech.RecognizerIntent;
+import android.speech.RecognitionListener;
+import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.Spinner;
+import android.widget.TextView;
+
+import java.util.List;
+
+public class MainActivity extends Activity {
+
+    private SpeechRecognizer speechRecognizer;
+    private TextView originalText;
+    private TextView translatedText;
+    private ImageView micIcon;
+    private Spinner languageSpinner;
+    private Button resetButton;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        originalText = findViewById(R.id.originalText);
+        translatedText = findViewById(R.id.translatedText);
+        micIcon = findViewById(R.id.micIcon);
+        languageSpinner = findViewById(R.id.languageSpinner);
+        resetButton = findViewById(R.id.resetButton);
+
+        // 음성 인식 초기화
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        speechRecognizer.setRecognitionListener(new RecognitionListener() {
+            @Override
+            public void onReadyForSpeech(Bundle params) {}
+
+            @Override
+            public void onBeginningOfSpeech() {
+                micIcon.setImageResource(R.drawable.ic_mic_on);  // 마이크 아이콘 켜기
+            }
+
+            @Override
+            public void onRmsChanged(float rmsdB) {}
+
+            @Override
+            public void onBufferReceived(byte[] buffer) {}
+
+            @Override
+            public void onEndOfSpeech() {}
+
+            @Override
+            public void onError(int error) {}
+
+            @Override
+            public void onResults(Bundle results) {
+                // 음성 인식 결과 처리
+                List<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                if (matches != null && !matches.isEmpty()) {
+                    String recognizedText = matches.get(0);
+                    originalText.setText(recognizedText);  // 인식된 텍스트를 화면에 표시
+                    translateText(recognizedText);  // 번역 기능 호출
+                }
+            }
+
+            @Override
+            public void onPartialResults(Bundle partialResults) {}
+
+            @Override
+            public void onEvent(int eventType, Bundle params) {}
+        });
+
+        // 음성 인식 시작
+        startVoiceRecognition();
+
+        // 초기화 버튼 클릭 시
+        resetButton.setOnClickListener(v -> {
+            originalText.setText("");  // 원본 텍스트 초기화
+            translatedText.setText("");  // 번역 텍스트 초기화
+        });
+    }
+
+    // 음성 인식 시작 메서드
+    private void startVoiceRecognition() {
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        speechRecognizer.startListening(intent);
+    }
+
+    // 번역 기능
+    private void translateText(String originalText) {
+        String selectedLanguage = languageSpinner.getSelectedItem().toString();
+        // 번역 API를 호출하여 텍스트를 번역하고 translatedText에 표시
+        translatedText.setText("번역된 텍스트: " + originalText);  // 예시로 번역되지 않은 텍스트 그대로 표시
+    }
+}
+
+코드 설명:
+	•	음성 인식 기능을 위해 SpeechRecognizer를 사용합니다.
+	•	음성 인식 결과가 나오면 originalText에 해당 텍스트를 표시하고, translateText() 메서드를 호출하여 번역을 시작합니다.
+	•	언어 선택은 Spinner로, 사용자가 선택한 언어에 맞게 번역을 처리하도록 구현합니다.
+	•	초기화 버튼을 클릭하면 텍스트를 초기화합니다.
+
+6. 음성 인식 및 번역 API 설정
+
+음성 인식 기능은 완성했지만, 번역 API를 실제로 연결하는 작업은 이후 단계에서 추가적으로 진행해야 합니다. 이를 위해 Google Cloud Translation API나 Papago API 같은 외부 번역 서비스를 사용하면 됩니다.
+
+7. 다음 단계
+	1.	TTS (Text-to-Speech) 구현
+	2.	번역 API 연동
+	3.	UI 개선 (마이크 아이콘 애니메이션, 디자인 최적화)
+
+먼저 음성 인식 기능까지 구현한 후, 필요한 추가 기능을 차례대로 구현해 나갈 수 있습니다.
+
+알겠습니다! 이제 번역 API 연동과 TTS (Text-to-Speech) 기능을 추가하여 앱을 완성할 수 있도록 설명드리겠습니다.
+
+6. 번역 API 연동
+
+우리는 Google Cloud Translation API를 사용하여 음성으로 입력받은 텍스트를 다른 언어로 번역할 수 있습니다. 번역 API를 연동하는 방법을 단계별로 설명드리겠습니다.
+
+6.1 Google Cloud Translation API 설정
+
+먼저 Google Cloud Translation API를 사용하려면 Google Cloud Console에서 API를 활성화하고 API 키를 발급받아야 합니다.
+	1.	Google Cloud Console에 로그인 후 프로젝트를 생성합니다.
+	2.	API & Services -> Library로 이동하여 Cloud Translation API를 검색하여 활성화합니다.
+	3.	Credentials로 이동하여 API 키를 생성합니다.
+
+6.2 Gradle 설정
+
+프로젝트의 build.gradle 파일에 의존성을 추가해야 합니다. Retrofit을 사용하여 API를 호출할 수 있도록 설정합니다.
+	1.	Gradle 설정을 추가하세요.
+
+build.gradle (Project)
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.3.0'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.7.10'
+    }
+}
+
+build.gradle (Module)
+
+dependencies {
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.9.0'
+}
+
+Sync Now 버튼을 클릭하여 의존성을 추가합니다.
+
+6.3 번역 API 호출
+
+번역 API를 호출하기 위해 Retrofit을 사용해 간단한 요청을 처리합니다. 다음과 같이 TranslationService 클래스를 작성합니다.
+
+TranslationService.java
+
+import retrofit2.Call;
+import retrofit2.http.GET;
+import retrofit2.http.Query;
+
+public interface TranslationService {
+    @GET("language/translate/v2")
+    Call<TranslationResponse> translateText(
+        @Query("q") String text,
+        @Query("target") String targetLanguage,
+        @Query("key") String apiKey
+    );
+}
+
+TranslationResponse.java
+
+public class TranslationResponse {
+    private Data data;
+
+    public Data getData() {
+        return data;
+    }
+
+    public static class Data {
+        private Translation[] translations;
+
+        public Translation[] getTranslations() {
+            return translations;
+        }
+    }
+
+    public static class Translation {
+        private String translatedText;
+
+        public String getTranslatedText() {
+            return translatedText;
+        }
+    }
+}
+
+RetrofitClient.java
+
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+
+public class RetrofitClient {
+    private static Retrofit retrofit;
+    private static final String BASE_URL = "https://translation.googleapis.com/";
+
+    public static Retrofit getClient() {
+        if (retrofit == null) {
+            retrofit = new Retrofit.Builder()
+                    .baseUrl(BASE_URL)
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .build();
+        }
+        return retrofit;
+    }
+}
+
+MainActivity.java 수정
+
+번역 기능을 translateText() 메서드에 연결하고, Retrofit을 통해 API를 호출합니다.
+
+import android.os.Bundle;
+import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Button;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+public class MainActivity extends AppCompatActivity {
+
+    private TextView originalText, translatedText;
+    private Spinner languageSpinner;
+    private Button resetButton;
+
+    private static final String API_KEY = "YOUR_GOOGLE_CLOUD_API_KEY";  // 여기에 API 키를 넣으세요
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        originalText = findViewById(R.id.originalText);
+        translatedText = findViewById(R.id.translatedText);
+        languageSpinner = findViewById(R.id.languageSpinner);
+        resetButton = findViewById(R.id.resetButton);
+
+        // 음성 인식 및 번역 처리 (기존 코드 그대로)
+    }
+
+    private void translateText(String text) {
+        String selectedLanguage = languageSpinner.getSelectedItem().toString();
+        String targetLanguage = getTargetLanguageCode(selectedLanguage);  // 언어 코드로 변환
+
+        TranslationService service = RetrofitClient.getClient().create(TranslationService.class);
+        Call<TranslationResponse> call = service.translateText(text, targetLanguage, API_KEY);
+
+        call.enqueue(new Callback<TranslationResponse>() {
+            @Override
+            public void onResponse(Call<TranslationResponse> call, Response<TranslationResponse> response) {
+                if (response.isSuccessful()) {
+                    String translated = response.body().getData().getTranslations()[0].getTranslatedText();
+                    translatedText.setText(translated);  // 번역된 텍스트 화면에 표시
+                }
+            }
+
+            @Override
+            public void onFailure(Call<TranslationResponse> call, Throwable t) {
+                translatedText.setText("번역 실패");
+            }
+        });
+    }
+
+    private String getTargetLanguageCode(String language) {
+        switch (language) {
+            case "영어":
+                return "en";
+            case "한국어":
+                return "ko";
+            case "일본어":
+                return "ja";
+            case "중국어":
+                return "zh";
+            case "스페인어":
+                return "es";
+            case "독일어":
+                return "de";
+            default:
+                return "en";  // 기본값 영어
+        }
+    }
+}
+
+이제 음성 텍스트가 입력되면, translateText() 메서드가 호출되어 Google Cloud Translation API를 통해 번역 결과를 화면에 표시합니다.
+
+7. TTS (Text-to-Speech) 구현
+
+사용자가 번역된 텍스트를 음성으로 들을 수 있도록 TTS(Text-to-Speech) 기능을 구현합니다.
+
+7.1 Text-to-Speech 설정
+
+TextToSpeech 클래스는 안드로이드에서 음성을 출력하는 데 사용됩니다. 아래와 같이 MainActivity에서 TTS 기능을 추가합니다.
+
+MainActivity.java에 TTS 추가
+
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.TextToSpeech.OnInitListener;
+import java.util.Locale;
+
+public class MainActivity extends AppCompatActivity {
+
+    private TextToSpeech textToSpeech;
+    private TextView originalText, translatedText;
+    private Spinner languageSpinner;
+    private Button resetButton;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        originalText = findViewById(R.id.originalText);
+        translatedText = findViewById(R.id.translatedText);
+        languageSpinner = findViewById(R.id.languageSpinner);
+        resetButton = findViewById(R.id.resetButton);
+
+        // TTS 초기화
+        textToSpeech = new TextToSpeech(this, new OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if (status == TextToSpeech.SUCCESS) {
+                    // 언어 설정 (여기서는 영어)
+                    int langResult = textToSpeech.setLanguage(Locale.US);
+                    if (langResult == TextToSpeech.LANG_MISSING_DATA
+                            || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        // 지원되지 않는 언어인 경우 처리
+                    }
+                }
+            }
+        });
+
+        // 번역된 텍스트를 읽어주는 기능 추가
+        translatedText.setOnClickListener(v -> {
+            String text = translatedText.getText().toString();
+            if (!text.isEmpty()) {
+                textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+            }
+        });
+
+        // 나머지 기능 (음성 인식 및 번역 등)
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            textToSpeech.shutdown();
+        }
+        super.onDestroy();
+    }
+}
+
+7.2 TTS 기능 설명
+	•	TextToSpeech 객체를 초기화하여 텍스트를 음성으로 읽도록 설정합니다.
+	•	translatedText에 표시된 번역된 텍스트를 클릭하면 speak() 메서드를 사용하여 해당 텍스트를 음성으로 읽어줍니다.
+
+8. 전체 앱 흐름
+
+이제 앱의 흐름은 다음과 같습니다:
+	1.	음성 인식: 사용자가 말한 내용을 SpeechRecognizer가 텍스트로 변환합니다.
+	2.	번역: 텍스트를 번역 API를 통해 선택한 언어로 번역합니다.
+	3.	TTS: 번역된 텍스트를 음성으로 읽어줍니다.
+	4.	UI: 원본 텍스트와 번역된 텍스트가 화면에 표시됩니다. 초기화 버튼을 눌러 이전 텍스트를 지울 수 있습니다.
+
+이렇게 하면 완전한 음성 인식, 번역, TTS 기능이 갖춰진 앱을 만들 수 있습니다.
